@@ -17,7 +17,6 @@ if RUBY_VERSION < '1.9.0'
   end
 end
 
-
 #add mentions method to Twitter::Base class
 module Twitter
   class Base
@@ -27,22 +26,33 @@ module Twitter
   end
 end
 
-
 #
 # TwitterBot class
 #
 class TwitterBot
+  include Twitter
+
   def initialize (screen_name, pass, logdest=STDOUT)
+    @debug = false
+    @logger = Logger.new(logdest, 5)
     @logger = Logger.new(logdest, 5)
 
     @screen_name = screen_name
-    httpauth = Twitter::HTTPAuth.new(screen_name, pass)
-    @twit = Twitter::Base.new(httpauth) 
+    httpauth = HTTPAuth.new(screen_name, pass)
+    @twit = Base.new(httpauth) 
+  end
+
+  def set_debug
+    @debug = true
   end
 
   def tweet(msg)
     begin
-      @twit.update(msg)
+      unless @debug
+        @twit.update(msg)
+      else
+        p msg
+      end
     rescue => e
       @logger.error e.message
     end
@@ -85,6 +95,34 @@ class TwitterBot
     end
   end
 
+  def follow_back
+    @friends = @twit.friend_ids
+    @followers = @twit.follower_ids
+
+    (@followers - @friends).each {|id|
+      begin
+        @twit.friendship_create id
+        p id
+      rescue => e
+        @logger.warn e.message
+      end
+    }
+  end
+
+  def remove_back
+    @friends = @twit.friend_ids
+    @followers = @twit.follower_ids
+
+    (@friends - @followers).each {|id|
+      begin
+        @twit.friendship_destroy id
+      rescue => e
+        @logger.warn e.message
+      end
+    }
+  end
+
+
   def save_status
     begin
       open("botstatus.dat", "w") {|f|
@@ -116,17 +154,20 @@ if $0 == __FILE__
 begin
   screen_name = ""
   password =  ""
+
   open("account.cfg", "r") {|f|
     account = f.readlines
     screen_name = account[0].strip
     password = account[1].strip
   }
-
+  
   bot = TwitterBot.new(screen_name, password)
   bot.load_status
   bot.tweet "Hello Bot World at " + Time.now.to_s
 #  bot.tweet_random "random.txt"
 #  bot.retweet_to_mentioned
+#  bot.follow_back
+#  bot.remove_back
   bot.save_status
 
 rescue => e
