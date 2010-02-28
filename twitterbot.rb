@@ -1,4 +1,5 @@
 #!/usr/local/bin/ruby -Ku
+# -*- coding: utf-8 -*-
 
 #
 # Twitter Bot Program
@@ -35,7 +36,6 @@ class TwitterBot
   def initialize (screen_name, pass, logdest=STDOUT)
     @debug = false
     @logger = Logger.new(logdest, 5)
-    @logger = Logger.new(logdest, 5)
 
     @screen_name = screen_name
     httpauth = HTTPAuth.new(screen_name, pass)
@@ -70,7 +70,10 @@ class TwitterBot
   end
 
   #
-  # TODO: @name が先頭のものにだけReTweetするようにしたほうがいいかも
+  # @myself が先頭mentionedにReTweetする
+  #
+  # TODO: 最後にReTweetした元TweetのIDを見てるので、mentioned取得のオーダーが変わると
+  # 再ReTweetしてしまう。IDをDBに保存すべき
   #
   def retweet_to_mentioned
     flag = false
@@ -79,13 +82,17 @@ class TwitterBot
     begin
       @twit.mentions.each {|status|
         break if status.id == @last_mentioned_id
-	next if status.user.screen_name == @screen_name
-        if !flag
-          tmp_id = status.id
-          flag = true
-        end
+#	next if status.user.screen_name == @screen_name # skip tweet by myself
 
-        tweet("RT " + "@" + status.user.screen_name + " : " +  status.text.gsub("@" + @screen_name, ""))
+        # check if the tweet start with @myself
+        if /^@#{@screen_name}/ =~ status.text
+          if !flag
+            tmp_id = status.id
+            flag = true
+          end
+
+          tweet("RT " + "@" + status.user.screen_name + " : " +  status.text.gsub("@" + @screen_name, ""))
+        end
       }
     rescue => e
       @logger.error e.message
@@ -95,6 +102,34 @@ class TwitterBot
     end
   end
 
+  #
+  # public timeline を検索し、ヒットしたTweetをReTweetする
+  #
+  def search_and_retweet searchkey
+    flag = false
+    tmp_id = 0
+
+    begin
+      Twitter::Search.new(searchkey).each {|status|
+      #@twit.search(searchkey).each {|status|
+        break if status.id == @last_searched_id
+        if !flag
+          tmp_id = status.id
+          flag = true
+        end
+        tweet("RT " + "@" + status.from_user + " " +  status.text)
+      }
+    rescue => e
+      @logger.error e.message
+    end
+    if flag
+      @last_searched_id = tmp_id
+    end
+  end
+
+  #
+  # TODO ファイル一つにまとめる、DB化する
+  #
   def follow_back
     @friends = @twit.friend_ids
     @followers = @twit.follower_ids
@@ -109,6 +144,7 @@ class TwitterBot
     }
   end
 
+
   def remove_back
     @friends = @twit.friend_ids
     @followers = @twit.follower_ids
@@ -122,21 +158,28 @@ class TwitterBot
     }
   end
 
-
   def save_status
     begin
       open("botstatus.dat", "w") {|f|
         f.puts @last_mentioned_id
       }
+      open("last_searched_id.dat", "w") {|f|
+        f.puts @last_searched_id
+      }
     rescue => e
       @logger.error "file save error"
     end
   end
+
   def load_status
     begin
       open("botstatus.dat", "r") {|f|
         data = f.readlines
         @last_mentioned_id = data[0].to_i
+      }
+      open("last_searched_id.dat", "r") {|f|
+        data = f.readlines
+        @last_searched_id = data[0].to_i
       }
     rescue => e
       @logger.error "file load error"
@@ -160,14 +203,16 @@ begin
     screen_name = account[0].strip
     password = account[1].strip
   }
-  
+
   bot = TwitterBot.new(screen_name, password)
+  bot.set_debug
   bot.load_status
   bot.tweet "Hello Bot World at " + Time.now.to_s
 #  bot.tweet_random "random.txt"
 #  bot.retweet_to_mentioned
 #  bot.follow_back
 #  bot.remove_back
+  bot.search_and_retweet "東京"
   bot.save_status
 
 rescue => e
