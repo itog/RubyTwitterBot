@@ -49,6 +49,7 @@ class TwitterBot
   def tweet(msg)
     begin
       unless @debug
+        blog_title = blog_title.split(//u)[0,130].join + "..." if msg.split(//u).size > 140
         @twit.update(msg)
       else
         p msg
@@ -113,6 +114,7 @@ class TwitterBot
       Twitter::Search.new(searchkey).each {|status|
       #@twit.search(searchkey).each {|status|
         break if status.id == @last_searched_id
+	next if @screen_name == status.from_user
         if !flag
           tmp_id = status.id
           flag = true
