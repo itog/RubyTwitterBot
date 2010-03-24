@@ -115,6 +115,12 @@ class TwitterBot
       #@twit.search(searchkey).each {|status|
         break if status.id == @last_searched_id
 	next if @screen_name == status.from_user
+
+	# RT only when it has searchkey before RT/QT
+	indexes = {status.text.index("RT"), status.text.index("QT")}
+	index = indexes.min
+	next if status.text.slice(0, index).index(searchkey) == nil
+
         if !flag
           tmp_id = status.id
           flag = true
