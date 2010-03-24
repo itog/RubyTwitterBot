@@ -136,7 +136,9 @@ class TwitterBot
     @friends = @twit.friend_ids
     @followers = @twit.follower_ids
 
-    (@followers - @friends).each {|id|
+    new_follower = @followers - @friends
+
+    new_follower.each {|id|
       begin
         @twit.friendship_create id
         p id
@@ -144,6 +146,7 @@ class TwitterBot
         @logger.warn e.message
       end
     }
+    new_follower
   end
 
 
@@ -151,13 +154,15 @@ class TwitterBot
     @friends = @twit.friend_ids
     @followers = @twit.follower_ids
 
-    (@friends - @followers).each {|id|
+    removed = @friends - @followers
+    removed.each {|id|
       begin
         @twit.friendship_destroy id
       rescue => e
         @logger.warn e.message
       end
     }
+    removed
   end
 
   def save_status
