@@ -110,16 +110,30 @@ class TwitterBot
     flag = false
     tmp_id = 0
 
+    skeys = searchkey.split("\sOR\s")
+    p skeys
+
     begin
       Twitter::Search.new(searchkey).each {|status|
-      #@twit.search(searchkey).each {|status|
         break if status.id == @last_searched_id
 	next if @screen_name == status.from_user
 
 	# RT only when it has searchkey before RT/QT
-	indexes = {status.text.index("RT"), status.text.index("QT")}
+	rt_index = status.text.index("RT") != nil ? status.text.index("RT") : 140
+	qt_index = status.text.index("QT") != nil ? status.text.index("QT") : 140
+	indexes = [rt_index, qt_index]
 	index = indexes.min
-	next if status.text.slice(0, index).index(searchkey) == nil
+	contains = false
+	skeys.each {|key|
+	  if status.text.slice(0, index).index(key) != nil
+ 	    contains = true
+          end
+	}
+	
+	if !contains
+          @logger.info "except duplicated retweet : " + status.text
+	  next
+	end
 
         if !flag
           tmp_id = status.id
